@@ -2,7 +2,13 @@
   <header class="header">
     <h1>สรุปการรับคำสั่งซื้อ</h1>
     <div class="actions">
-      <button type="button" disabled>รายงานกำหนดส่ง</button>
+      <button
+        type="button"
+        (click)="openDeliveryReport()"
+        [disabled]="loading() || customersLoading()"
+      >
+        รายงานกำหนดส่ง
+      </button>
       <button type="button" class="primary" (click)="createOrder()" [disabled]="loading()">เพิ่มคำสั่งซื้อ</button>
     </div>
   </header>

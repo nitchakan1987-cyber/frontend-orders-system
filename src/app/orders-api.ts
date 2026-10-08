@@ -71,6 +71,27 @@ export interface OrderDetail {
   grandTotal: string;
   currency: string;
 }
+export interface DeliveryReportItem {
+  deliveryDate: string;
+  orderId: number;
+  orderNo: string;
+  customerId: number;
+  customerName: string;
+  productId: number;
+  productCode: string;
+  productName: string;
+  quantityToDeliver: number;
+  deliveryStatus: string;
+}
+
+export interface DeliveryReportResult {
+  data: {
+    items: DeliveryReportItem[];
+  };
+  meta: {
+    totalItems: number;
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class OrdersApi {
@@ -147,6 +168,31 @@ export class OrdersApi {
         headers: new HttpHeaders({
           Authorization: `Bearer ${this.token}`,
         }),
+      })
+    );
+  }
+  deliverySchedule(
+    deliveryFrom: string,
+    deliveryTo: string
+  ): Promise<DeliveryReportResult> {
+    return this.get<DeliveryReportResult>(
+      '/reports/delivery-schedule',
+      { deliveryFrom, deliveryTo }
+    );
+  }
+
+  exportDeliverySchedule(
+    deliveryFrom: string,
+    deliveryTo: string,
+    format: 'pdf' | 'xlsx'
+  ): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get('/api/v1/reports/delivery-schedule/export', {
+        params: { deliveryFrom, deliveryTo, format },
+        headers: new HttpHeaders({
+          Authorization: `Bearer ${this.token}`,
+        }),
+        responseType: 'blob',
       })
     );
   }

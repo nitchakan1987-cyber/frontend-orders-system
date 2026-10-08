@@ -213,7 +213,7 @@ export class OrdersList {
       state: { fromOrdersList: true },
     });
   }
-  
+
   async deleteOrder(order: Order): Promise<void> {
     if (
       this.loading() ||
@@ -297,7 +297,19 @@ export class OrdersList {
       state: { fromOrdersList: true },
     });
   }
+  openDeliveryReport(): void {
+    if (this.loading() || this.customersLoading()) return;
 
+    void this.router.navigate(['/reports/delivery-schedule'], {
+      queryParams: {
+        returnTo: this.router.url,
+      },
+      state: {
+        fromOrdersList: true,
+      },
+    });
+  }
+  
   private buildFilters(): Record<string, string> {
     const filters: Record<string, string> = { startDate: this.startDate, endDate: this.endDate };
     if (this.salespersonId) filters['salespersonId'] = this.salespersonId;

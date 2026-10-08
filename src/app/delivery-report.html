@@ -1,0 +1,188 @@
+<main class="page">
+  <header class="header">
+    <h1>รายงานคำสั่งซื้อถึงกำหนดส่ง</h1>
+
+    <div class="actions">
+      <button type="button" (click)="goBack()" [disabled]="busy()">
+        กลับหน้าสรุป
+      </button>
+    </div>
+  </header>
+
+  <section class="panel">
+    <h2>ช่วงวันที่กำหนดส่งสินค้า</h2>
+
+    <div class="filters">
+      <mat-form-field appearance="outline">
+        <mat-label>วันที่เริ่มต้น</mat-label>
+
+        <input
+          matInput
+          [matDatepicker]="startPicker"
+          [(ngModel)]="startDateValue"
+          [disabled]="busy()"
+          readonly
+        />
+
+        <mat-datepicker-toggle
+          matSuffix
+          [for]="startPicker"
+        ></mat-datepicker-toggle>
+
+        <mat-datepicker #startPicker></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>วันที่สิ้นสุด</mat-label>
+
+        <input
+          matInput
+          [matDatepicker]="endPicker"
+          [(ngModel)]="endDateValue"
+          [min]="startDateValue"
+          [disabled]="busy()"
+          readonly
+        />
+
+        <mat-datepicker-toggle
+          matSuffix
+          [for]="endPicker"
+        ></mat-datepicker-toggle>
+
+        <mat-datepicker #endPicker></mat-datepicker>
+      </mat-form-field>
+    </div>
+
+    <div class="actions">
+      <button
+        type="button"
+        class="primary"
+        (click)="search()"
+        [disabled]="busy()"
+      >
+        {{ loading() ? 'กำลังโหลด...' : 'ค้นหารายงาน' }}
+      </button>
+
+      <button
+        type="button"
+        (click)="exportReport('pdf')"
+        [disabled]="!canExport()"
+      >
+        {{ exporting() === 'pdf' ? 'กำลังดาวน์โหลด...' : 'Export PDF' }}
+      </button>
+
+      <button
+        type="button"
+        (click)="exportReport('xlsx')"
+        [disabled]="!canExport()"
+      >
+        {{ exporting() === 'xlsx' ? 'กำลังดาวน์โหลด...' : 'Export Excel' }}
+      </button>
+    </div>
+
+    @if (filterChanged()) {
+      <p>เงื่อนไขเปลี่ยนแล้ว กรุณากดค้นหาก่อน Export</p>
+    }
+
+    @if (error()) {
+      <p class="error" role="alert">{{ error() }}</p>
+    }
+  </section>
+
+  <section class="panel">
+    <h2>รายการกำหนดส่ง</h2>
+
+    <p>
+      รวมรายการรอจัดส่งและส่งแล้ว
+      โดยรายการส่งแล้วมีจำนวนที่ต้องส่งเป็น 0
+    </p>
+
+    @if (loading()) {
+      <p role="status">กำลังโหลดรายงาน...</p>
+    }
+
+    @if (!loading() && !searchSucceeded() && result()) {
+      <p class="error">
+        ข้อมูลด้านล่างเป็นผลที่โหลดสำเร็จครั้งก่อน
+      </p>
+    }
+
+    @if (result()) {
+    <p>ทั้งหมด {{ totalItems() | number }} รายการสินค้า</p>
+    }
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>วันกำหนดส่ง</th>
+            <th>เลขที่เอกสาร</th>
+            <th>ลูกค้า</th>
+            <th>รหัสสินค้า</th>
+            <th>สินค้า</th>
+            <th class="amount">จำนวนที่ต้องส่ง</th>
+            <th>สถานะ</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (
+            item of pagedItems();
+            track item.orderId + ':' + item.productId
+          ) {
+            <tr>
+              <td>{{ item.deliveryDate | date:'dd/MM/yyyy' }}</td>
+              <td>{{ item.orderNo }}</td>
+              <td>{{ item.customerName }}</td>
+              <td>{{ item.productCode }}</td>
+              <td>{{ item.productName }}</td>
+              <td class="amount">
+                {{ item.quantityToDeliver | number }}
+              </td>
+              <td>
+                {{ item.deliveryStatus === 'NOT_SHIPPED'
+                  ? 'รอจัดส่ง'
+                  : item.deliveryStatus === 'SHIPPED'
+                  ? 'ส่งสินค้าแล้ว'
+                  : item.deliveryStatus }}
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="empty">
+                {{ loading()
+                  ? 'กำลังโหลดข้อมูล'
+                  : searchSucceeded()
+                  ? 'ไม่พบข้อมูลตามช่วงวันที่กำหนดส่ง'
+                  : 'ยังไม่มีผลรายงาน' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      @if (totalPages() > 0) {
+        <div class="actions filter-actions">
+            <button
+            type="button"
+            (click)="changePage(currentPage() - 1)"
+            [disabled]="busy() || currentPage() <= 1"
+            >
+            ก่อนหน้า
+            </button>
+            
+            <span>
+            หน้า {{ currentPage() }} / {{ totalPages() }}
+            </span>
+
+            <button
+            type="button"
+            (click)="changePage(currentPage() + 1)"
+            [disabled]="busy() || currentPage() >= totalPages()"
+            >
+            ถัดไป
+            </button>
+        </div>
+        }   
+    </div>
+  </section>
+</main>
