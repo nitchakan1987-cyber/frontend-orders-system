@@ -203,6 +203,14 @@ export class OrdersList {
     });
   }
 
+  editOrder(order: Order): void {
+    if (!order.actions?.canEdit || order.deliveryStatus !== 'NOT_SHIPPED' || this.loading()) return;
+    void this.router.navigate(['/orders', order.id, 'edit'], {
+      queryParams: { returnTo: this.router.url },
+      state: { fromOrdersList: true },
+    });
+  }
+
   viewOrder(order: Order): void {
     if (!order.actions?.canView || this.loading()) return;
     void this.router.navigate(['/orders', order.id], {

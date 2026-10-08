@@ -1,10 +1,20 @@
 @if (mode === 'create') {
   <app-order-form (saved)="created($event)" (cancelled)="goBack()"></app-order-form>
+} @else if (mode === 'edit' && detail()?.deliveryStatus === 'NOT_SHIPPED') {
+  @if (detail(); as order) {
+    <app-order-form mode="edit" [initialOrder]="order"
+      (saved)="created($event)" (cancelled)="goBack()"></app-order-form>
+  }
 } @else {
 <main class="page">
   <header class="header">
     <h1>รายละเอียดคำสั่งซื้อ</h1>
-    <div class="actions"><button type="button" (click)="goBack()">กลับหน้าค้นหา</button></div>
+    <div class="actions">
+      @if (mode === 'view' && detail()?.deliveryStatus === 'NOT_SHIPPED') {
+        <button type="button" (click)="editOrder()" [disabled]="loading()">แก้ไขคำสั่งซื้อ</button>
+      }
+      <button type="button" (click)="goBack()">กลับหน้าค้นหา</button>
+    </div>
   </header>
   @if (loading()) {
     <section class="panel"><p role="status">กำลังโหลดรายละเอียด...</p></section>
@@ -14,6 +24,9 @@
       <p class="error" role="alert">{{ error() }}</p>
       <div class="actions"><button type="button" (click)="loadDetail()" [disabled]="loading()">ลองใหม่</button></div>
     </section>
+  }
+  @if (mode === 'edit' && detail() && detail()?.deliveryStatus !== 'NOT_SHIPPED') {
+    <section class="panel"><p role="alert">เอกสารนี้แก้ไขไม่ได้ เนื่องจากมีการจัดส่งแล้วหรือสถานะไม่รองรับ จึงแสดงให้อ่านอย่างเดียว</p></section>
   }
   @if (detail(); as order) {
     <section class="panel">

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, Input, OnInit, inject, output, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -6,7 +6,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MAT_DATE_LOCALE, MatDateFormats, provideNativeDateAdapter } from '@angular/material/core';
-import { OrdersApi, Salesperson, Customer } from './orders-api';
+import { OrdersApi, Salesperson, Customer, OrderDetail } from './orders-api';
 import { CreateOrderRequest, DraftItem, ProductOption } from './order-create.models';
 import { decimalMoney, displayMoney, moneyCents, MAX_MONEY_CENTS } from './order-money';
 const FORM_DATE_FORMATS: MatDateFormats = {
@@ -26,7 +26,11 @@ const FORM_DATE_FORMATS: MatDateFormats = {
   templateUrl: './order-form.html',
   styleUrls: ['./app.scss', './order-pages.scss'],
 })
-export class OrderForm {
+export class OrderForm implements OnInit {
+  @Input() mode: 'create' | 'edit' = 'create';
+  @Input() initialOrder: OrderDetail | null = null;
+  readonly locked = signal(false);
+  private readonly originalPrices = new Map<number, string>();
   private readonly api = inject(OrdersApi);
   private readonly destroyRef = inject(DestroyRef);
   readonly saved = output<number>();
@@ -53,11 +57,44 @@ export class OrderForm {
   private completed = false;
   constructor() {
     this.destroyRef.onDestroy(() => { this.alive = false; ++this.masterRequest; });
-    this.addItem(false);
+  }
+  ngOnInit(): void {
+    if (this.mode === 'edit') {
+      if (!this.initialOrder || this.initialOrder.deliveryStatus !== 'NOT_SHIPPED') {
+        this.locked.set(true);
+        this.error.set('คำสั่งซื้อนี้แก้ไขไม่ได้');
+        return;
+      }
+      this.fillExistingOrder(this.initialOrder);
+    } else {
+      this.addItem(false);
+    }
     void this.initialize();
   }
+  private fillExistingOrder(order: OrderDetail): void {
+    this.orderDateValue = this.calendarDate(order.orderDate);
+    this.salespersonId = String(order.salespersonId);
+    this.customerId = String(order.customerId);
+    this.freightCharge = order.freightCharge;
+    this.insuranceCharge = order.insuranceCharge;
+    this.items.set(order.items.map(item => {
+      this.originalPrices.set(item.productId, item.unitPrice);
+      return {
+        key: ++this.nextKey, productId: String(item.productId), quantity: item.quantity,
+        deliveryDate: this.calendarDate(item.deliveryDate), unitPrice: item.unitPrice,
+        priceLoading: false, priceError: '', priceRequest: 0,
+      };
+    }));
+    this.dirty = false;
+  }
+  private calendarDate(value: string): Date | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return this.dateString(date) === value ? date : null;
+  }
   async initialize(): Promise<void> {
-    if (this.saving()) return;
+    if (this.saving() || this.locked()) return;
     const request = ++this.masterRequest;
     this.mastersLoading.set(true);
     this.customersLoading.set(true);
@@ -105,7 +142,7 @@ export class OrderForm {
     this.markDirty();
   }
   addItem(markDirty = true): void {
-    if (this.saving()) return;
+    if (this.saving() || this.locked()) return;
     const deliveryDate = this.orderDateValue && !Number.isNaN(this.orderDateValue.getTime())
       ? new Date(this.orderDateValue.getTime()) : null;
     this.items.update(items => [...items, {
@@ -115,7 +152,7 @@ export class OrderForm {
     if (markDirty) this.markDirty();
   }
   removeItem(row: DraftItem): void {
-    if (this.saving()) return;
+    if (this.saving() || this.locked()) return;
     ++row.priceRequest;
     this.items.update(items => items.filter(item => item.key !== row.key));
     this.markDirty();
@@ -132,6 +169,13 @@ export class OrderForm {
     this.markDirty();
     this.items.update(items => [...items]);
     if (!value) return;
+    // Backend UpdateOrder retains the original price for products already in this order.
+    const originalPrice = this.originalPrices.get(Number(value));
+    if (this.mode === 'edit' && originalPrice !== undefined) {
+      row.unitPrice = originalPrice;
+      this.items.update(items => [...items]);
+      return;
+    }
     row.priceLoading = true;
     this.items.update(items => [...items]);
     try {
@@ -204,13 +248,19 @@ export class OrderForm {
       items, freightCharge: decimalMoney(freight!), insuranceCharge: decimalMoney(insurance!) };
   }
   async submit(): Promise<void> {
-    if (this.completed || this.saving() || this.mastersLoading() || !this.mastersReady() || this.customersLoading() || this.hasPendingPrices()) return;
+    if (this.locked() || this.completed || this.saving() || this.mastersLoading() || !this.mastersReady() || this.customersLoading() || this.hasPendingPrices()) return;
     this.error.set('');
     const request = this.buildRequest();
     if (!request) return;
     this.saving.set(true);
     try {
-      const response = await this.api.createOrder(request);
+      // Re-check status on the client; the PUT endpoint must also enforce it atomically.
+      if (this.mode === 'edit') {
+        if (!this.initialOrder || !await this.checkEditable()) return;
+      }
+      const response = this.mode === 'edit'
+        ? await this.api.updateOrder(this.initialOrder!.id, request)
+        : await this.api.createOrder(request);
       if (!this.alive) return;
       if (!Number.isSafeInteger(response.data.id) || response.data.id <= 0) throw new Error('บันทึกแล้ว แต่ response ไม่มี ID คำสั่งซื้อ กรุณาตรวจหน้ารายการก่อนบันทึกซ้ำ');
       this.dirty = false;
@@ -219,6 +269,10 @@ export class OrderForm {
     } catch (error) {
       if (!this.alive) return;
       this.error.set(this.errorMessage(error));
+      if (this.mode === 'edit' && error instanceof HttpErrorResponse &&
+          (error.status === 409 || /SHIPP|NOT_EDITABLE/.test(String(error.error?.error?.code ?? '')))) {
+        try { await this.checkEditable(); } catch { /* Preserve the original PUT error. */ }
+      }
       if (error instanceof HttpErrorResponse && Array.isArray(error.error?.error?.fields)) {
         this.fieldErrors.set(error.error.error.fields.map((field: { field: string; message: string }) => `${field.field}: ${field.message}`));
       }
@@ -226,16 +280,27 @@ export class OrderForm {
       if (this.alive && !this.completed) this.saving.set(false);
     }
   }
+  private async checkEditable(): Promise<boolean> {
+    if (!this.initialOrder) return false;
+    const latest = await this.api.orderDetail(this.initialOrder.id);
+    if (!this.alive) return false;
+    if (latest.data.deliveryStatus !== 'NOT_SHIPPED') {
+      this.locked.set(true);
+      this.error.set('คำสั่งซื้อมีการจัดส่งแล้ว จึงบันทึกการแก้ไขไม่ได้ กรุณากลับไปดูข้อมูลล่าสุด');
+      return false;
+    }
+    return true;
+  }
   cancel(): void {
     if (this.saving()) return;
-    if (this.dirty && !window.confirm('ยกเลิกการสร้างคำสั่งซื้อ? ข้อมูลที่กรอกยังไม่ได้บันทึก')) return;
+    if (this.dirty && !window.confirm(this.mode === 'edit' ? 'ยกเลิกการแก้ไข? ข้อมูลที่เปลี่ยนยังไม่ได้บันทึก' : 'ยกเลิกการสร้างคำสั่งซื้อ? ข้อมูลที่กรอกยังไม่ได้บันทึก')) return;
     this.cancelled.emit();
   }
   private errorMessage(error: unknown): string {
     if (error instanceof HttpErrorResponse) {
       if (error.status === 0) return 'เชื่อมต่อ Backend ไม่ได้ หากเกิดตอนบันทึกให้ตรวจหน้ารายการก่อนลองบันทึกซ้ำ';
       if (error.status === 401) return 'Token ไม่ถูกต้อง';
-      if (error.status === 403) return 'ไม่มีสิทธิ์สร้างคำสั่งซื้อให้เจ้าหน้าที่ขายที่เลือก';
+      if (error.status === 403) return 'ไม่มีสิทธิ์บันทึกคำสั่งซื้อให้เจ้าหน้าที่ขายที่เลือก';
       return error.error?.error?.message ?? 'ดำเนินการไม่สำเร็จ';
     }
     return error instanceof Error ? error.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่';

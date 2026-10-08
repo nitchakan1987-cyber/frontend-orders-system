@@ -19,7 +19,8 @@ export class OrderView {
   private readonly router = inject(Router);
   private readonly location = inject(Location);
   private readonly destroyRef = inject(DestroyRef);
-  readonly mode = this.route.snapshot.data['mode'] === 'create' ? 'create' : 'view';
+  readonly mode: 'create' | 'edit' | 'view' = this.route.snapshot.data['mode'] === 'create'
+    ? 'create' : this.route.snapshot.data['mode'] === 'edit' ? 'edit' : 'view';
   readonly detail = signal<OrderDetail | null>(null);
   readonly loading = signal(false);
   readonly error = signal('');
@@ -73,7 +74,7 @@ export class OrderView {
   private async loadNames(order: OrderDetail, request: number): Promise<void> {
     const [sales, customers] = await Promise.allSettled([
       this.api.salespersons(),
-      this.api.customers(String(order.salespersonId)),
+      this.api.customersAll(),
     ]);
     if (request !== this.request) return;
     if (sales.status === 'fulfilled') {
@@ -85,6 +86,17 @@ export class OrderView {
     if (!this.customerName() || !this.salespersonName()) {
       this.nameWarning.set('ชื่อบางรายการโหลดไม่ได้ จึงแสดง ID แทน');
     }
+  }
+
+  editOrder(): void {
+    const order = this.detail();
+    if (!order || order.deliveryStatus !== 'NOT_SHIPPED' || this.loading()) return;
+    void this.router.navigate(['/orders', order.id, 'edit'], {
+      queryParams: { returnTo: this.route.snapshot.queryParamMap.get('returnTo') ?? '/orders' },
+      // Replace View with Edit so Back from the updated View returns to Search.
+      state: { fromOrdersList: (this.location.getState() as { fromOrdersList?: boolean } | null)?.fromOrdersList === true },
+      replaceUrl: true,
+    });
   }
 
   async created(orderId: number): Promise<void> {

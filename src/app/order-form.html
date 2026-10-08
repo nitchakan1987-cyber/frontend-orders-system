@@ -1,7 +1,17 @@
 <main class="page">
-  <header class="header"><h1>สร้างคำสั่งซื้อ</h1></header>
+  <header class="header"><h1>{{ mode === 'edit' ? 'แก้ไขคำสั่งซื้อ' : 'สร้างคำสั่งซื้อ' }}</h1></header>
+  @if (locked()) {
+    <section class="panel">
+      <p class="error" role="alert">{{ error() }}</p>
+      <button type="button" (click)="cancel()" [disabled]="saving()">กลับหน้าค้นหา</button>
+    </section>
+  } @else {
   <section class="panel">
-    <p>เลขที่เอกสารจะสร้างอัตโนมัติเมื่อบันทึกสำเร็จ</p>
+    @if (mode === 'edit') {
+      <p>เลขที่เอกสาร: <strong>{{ initialOrder?.orderNo }}</strong></p>
+    } @else {
+      <p>เลขที่เอกสารจะสร้างอัตโนมัติเมื่อบันทึกสำเร็จ</p>
+    }
     @if (mastersLoading()) { <p role="status">กำลังโหลดเจ้าหน้าที่ขาย ลูกค้า และสินค้า...</p> }
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (!mastersReady() && !mastersLoading()) {
@@ -117,9 +127,10 @@
     <div class="actions">
       <button type="button" class="primary" (click)="submit()"
         [disabled]="saving() || mastersLoading() || !mastersReady() || customersLoading() || hasPendingPrices()">
-        {{ saving() ? 'กำลังบันทึก...' : 'บันทึกคำสั่งซื้อ' }}
+        {{ saving() ? 'กำลังบันทึก...' : mode === 'edit' ? 'บันทึกการแก้ไข' : 'บันทึกคำสั่งซื้อ' }}
       </button>
       <button type="button" (click)="cancel()" [disabled]="saving()">ยกเลิก / กลับหน้าค้นหา</button>
     </div>
   </section>
+  }
 </main>

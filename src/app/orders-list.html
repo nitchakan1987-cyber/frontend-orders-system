@@ -104,7 +104,9 @@
                 @if (order.actions?.canView) {
                   <button type="button" (click)="viewOrder(order)" [disabled]="loading()">ดู</button>
                 }
-                @if (order.actions?.canEdit) { <button type="button" disabled>แก้ไข</button> }
+                @if (order.actions?.canEdit && order.deliveryStatus === 'NOT_SHIPPED') {
+                  <button type="button" (click)="editOrder(order)" [disabled]="loading()">แก้ไข</button>
+                }
                 @if (order.actions?.canDelete) { <button type="button" disabled>ลบ</button> }
               </td>
             </tr>

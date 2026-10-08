@@ -134,4 +134,11 @@ export class OrdersApi {
       })
     );
   }
+  updateOrder(id: number, request: CreateOrderRequest): Promise<{ data: OrderDetail }> {
+    return firstValueFrom(
+      this.http.put<{ data: OrderDetail }>(`/api/v1/orders/${id}`, request, {
+        headers: new HttpHeaders({ Authorization: `Bearer ${this.token}` }),
+      })
+    );
+  }
 }
