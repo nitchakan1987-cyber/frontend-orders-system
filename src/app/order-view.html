@@ -1,0 +1,59 @@
+@if (mode === 'create') {
+  <app-order-form (saved)="created($event)" (cancelled)="goBack()"></app-order-form>
+} @else {
+<main class="page">
+  <header class="header">
+    <h1>รายละเอียดคำสั่งซื้อ</h1>
+    <div class="actions"><button type="button" (click)="goBack()">กลับหน้าค้นหา</button></div>
+  </header>
+  @if (loading()) {
+    <section class="panel"><p role="status">กำลังโหลดรายละเอียด...</p></section>
+  }
+  @if (error()) {
+    <section class="panel">
+      <p class="error" role="alert">{{ error() }}</p>
+      <div class="actions"><button type="button" (click)="loadDetail()" [disabled]="loading()">ลองใหม่</button></div>
+    </section>
+  }
+  @if (detail(); as order) {
+    <section class="panel">
+      <h2>{{ order.orderNo }}</h2>
+      <div class="detail-grid">
+        <p><strong>วันที่รับ:</strong> {{ order.orderDate | date:'dd/MM/yyyy' }}</p>
+        <p><strong>สถานะ:</strong> {{ order.deliveryStatus === 'NOT_SHIPPED' ? 'รอจัดส่ง'
+          : order.deliveryStatus === 'SHIPPED' ? 'ส่งสินค้าแล้ว' : order.deliveryStatus }}</p>
+        <p><strong>ลูกค้า:</strong> {{ customerName() || ('ID ' + order.customerId) }}</p>
+        <p><strong>เจ้าหน้าที่ขาย:</strong> {{ salespersonName() || ('ID ' + order.salespersonId) }}</p>
+      </div>
+      @if (nameWarning()) { <p role="status">{{ nameWarning() }}</p> }
+      <h3>รายการสินค้า</h3>
+      <div class="table-wrapper">
+        <table>
+          <thead><tr>
+            <th>รหัสสินค้า</th><th>สินค้า</th><th>กำหนดส่ง</th>
+            <th class="amount">จำนวน</th><th class="amount">ราคาต่อหน่วย</th><th class="amount">รวม</th>
+          </tr></thead>
+          <tbody>
+            @for (item of order.items; track item.productId) {
+              <tr>
+                <td>{{ item.productCode }}</td><td>{{ item.productName }}</td>
+                <td>{{ item.deliveryDate ? (item.deliveryDate | date:'dd/MM/yyyy') : '—' }}</td>
+                <td class="amount">{{ item.quantity | number }}</td>
+                <td class="amount">{{ item.unitPrice | number:'1.2-2' }}</td>
+                <td class="amount">{{ item.lineTotal | number:'1.2-2' }}</td>
+              </tr>
+            } @empty { <tr><td colspan="6" class="empty">ไม่มีรายการสินค้า</td></tr> }
+          </tbody>
+        </table>
+      </div>
+      <div class="detail-totals">
+        <p>ยอดรวมสินค้า: {{ order.subtotal | number:'1.2-2' }} {{ order.currency }}</p>
+        <p>ค่าเฟรท: {{ order.freightCharge | number:'1.2-2' }} {{ order.currency }}</p>
+        <p>ค่าประกันสินค้า: {{ order.insuranceCharge | number:'1.2-2' }} {{ order.currency }}</p>
+        <p><strong>ยอดรวมสุทธิ: {{ order.grandTotal | number:'1.2-2' }} {{ order.currency }}</strong></p>
+      </div>
+    </section>
+  }
+</main>
+
+}

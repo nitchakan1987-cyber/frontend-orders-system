@@ -1,0 +1,125 @@
+<main class="page">
+  <header class="header"><h1>สร้างคำสั่งซื้อ</h1></header>
+  <section class="panel">
+    <p>เลขที่เอกสารจะสร้างอัตโนมัติเมื่อบันทึกสำเร็จ</p>
+    @if (mastersLoading()) { <p role="status">กำลังโหลดเจ้าหน้าที่ขายและสินค้า...</p> }
+    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    @if (!mastersReady() && !mastersLoading()) {
+      <button type="button" (click)="initialize()">โหลดข้อมูลใหม่</button>
+    }
+    @if (fieldErrors().length) {
+      <div class="error" role="alert">
+        <p>กรุณาตรวจข้อมูลต่อไปนี้</p>
+        <ul>@for (message of fieldErrors(); track $index) { <li>{{ message }}</li> }</ul>
+      </div>
+    }
+    <div class="filters">
+      <mat-form-field appearance="outline">
+        <mat-label>วันที่รับคำสั่งซื้อ</mat-label>
+        <input matInput [matDatepicker]="orderDatePicker" [(ngModel)]="orderDateValue"
+          (ngModelChange)="markDirty()" [disabled]="saving() || mastersLoading()" readonly />
+        <mat-datepicker-toggle matSuffix [for]="orderDatePicker"></mat-datepicker-toggle>
+        <mat-datepicker #orderDatePicker></mat-datepicker>
+      </mat-form-field>
+      <label>เจ้าหน้าที่ขาย
+        <select [(ngModel)]="salespersonId" (ngModelChange)="changeSalesperson()"
+          [disabled]="saving() || mastersLoading() || !mastersReady()">
+          <option value="">เลือกเจ้าหน้าที่ขาย</option>
+          @for (sales of salespersons(); track sales.id) { <option [value]="sales.id">{{ sales.name }}</option> }
+        </select>
+      </label>
+      <label>ลูกค้า
+        <select [(ngModel)]="customerId" (ngModelChange)="markDirty()"
+          [disabled]="saving() || customersLoading() || !salespersonId || !mastersReady()">
+          <option value="">{{ customersLoading() ? 'กำลังโหลดลูกค้า...' : 'เลือกลูกค้า' }}</option>
+          @for (customer of customers(); track customer.id) { <option [value]="customer.id">{{ customer.name }}</option> }
+        </select>
+      </label>
+    </div>
+    @if (salespersonId && !customersLoading() && !customers().length) {
+      <p>ยังไม่มีลูกค้าสำหรับเจ้าหน้าที่ขายนี้ กรุณาตรวจข้อมูลที่ Backend</p>
+    }
+  </section>
+
+  <section class="panel">
+    <div class="header">
+      <h2>รายการสินค้า</h2>
+      <div class="actions"><button type="button" (click)="addItem()"
+        [disabled]="saving() || !mastersReady()">เพิ่มสินค้า</button></div>
+    </div>
+    <div class="table-wrapper">
+      <table class="order-form-table">
+        <thead><tr>
+          <th>สินค้า</th><th>จำนวน</th><th>ราคาต่อหน่วย (บาท)</th>
+          <th>กำหนดส่ง</th><th class="amount">รวม (บาท)</th><th>จัดการ</th>
+        </tr></thead>
+        <tbody>
+          @for (row of items(); track row.key) {
+            <tr>
+              <td>
+                <select [ngModel]="row.productId" (ngModelChange)="changeProduct(row, $event)"
+                  [disabled]="saving() || !mastersReady()" [attr.aria-label]="'สินค้าแถว ' + ($index + 1)">
+                  <option value="">เลือกสินค้า</option>
+                  @for (product of products(); track product.id) {
+                    <option [value]="product.id" [disabled]="isUsed(product.id, row.key)">
+                      {{ product.code ? product.code + ' — ' : '' }}{{ product.name }}
+                    </option>
+                  }
+                </select>
+              </td>
+              <td>
+                <input type="number" [(ngModel)]="row.quantity" (ngModelChange)="markDirty()"
+                  min="1" max="2147483647" step="1" [disabled]="saving()"
+                  [attr.aria-label]="'จำนวนแถว ' + ($index + 1)" />
+              </td>
+              <td>
+                @if (row.priceLoading) { <span role="status">กำลังโหลดราคา...</span> }
+                @else { <span>{{ row.unitPrice || '—' }}</span> }
+                @if (row.priceError) {
+                  <p class="error" role="alert">{{ row.priceError }}</p>
+                  <button type="button" (click)="changeProduct(row, row.productId)" [disabled]="saving()">โหลดราคาใหม่</button>
+                }
+              </td>
+              <td>
+                <mat-form-field appearance="outline">
+                  <mat-label>กำหนดส่ง</mat-label>
+                  <input matInput [matDatepicker]="deliveryPicker" [(ngModel)]="row.deliveryDate"
+                    (ngModelChange)="markDirty()" [min]="orderDateValue" [disabled]="saving()" readonly />
+                  <mat-datepicker-toggle matSuffix [for]="deliveryPicker"></mat-datepicker-toggle>
+                  <mat-datepicker #deliveryPicker></mat-datepicker>
+                </mat-form-field>
+              </td>
+              <td class="amount">{{ lineTotal(row) }}</td>
+              <td><button type="button" (click)="removeItem(row)" [disabled]="saving()">นำออก</button></td>
+            </tr>
+          } @empty { <tr><td colspan="6" class="empty">กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ</td></tr> }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>ค่าใช้จ่ายเพิ่มเติม</h2>
+    <p>ค่าเฟรทและค่าประกันใช้สำหรับลูกค้าส่งออก ลูกค้าในประเทศต้องระบุเป็น 0</p>
+    <div class="detail-grid">
+      <label>ค่าเฟรท (บาท)
+        <input type="text" inputmode="decimal" [(ngModel)]="freightCharge" (ngModelChange)="markDirty()" [disabled]="saving()" />
+      </label>
+      <label>ค่าประกันสินค้า (บาท)
+        <input type="text" inputmode="decimal" [(ngModel)]="insuranceCharge" (ngModelChange)="markDirty()" [disabled]="saving()" />
+      </label>
+    </div>
+    <div class="detail-totals">
+      <p>ยอดรวมสินค้า: {{ subtotal() }} บาท</p>
+      <p><strong>ยอดรวมสุทธิ: {{ grandTotal() }} บาท</strong></p>
+      <p>ยอดแสดงก่อนบันทึกเป็นยอดประมาณการ ระบบจะใช้ราคาจริงจากฐานข้อมูลเมื่อบันทึก</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="primary" (click)="submit()"
+        [disabled]="saving() || mastersLoading() || !mastersReady() || customersLoading() || hasPendingPrices()">
+        {{ saving() ? 'กำลังบันทึก...' : 'บันทึกคำสั่งซื้อ' }}
+      </button>
+      <button type="button" (click)="cancel()" [disabled]="saving()">ยกเลิก / กลับหน้าค้นหา</button>
+    </div>
+  </section>
+</main>
