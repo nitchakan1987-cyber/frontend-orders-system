@@ -166,3 +166,18 @@ button:disabled {
 .error {
   color: #b42318;
 }
+mat-form-field {
+  width: 100%;
+}
+
+input[matInput] {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+input[matInput]:focus-visible {
+  outline: none;
+}

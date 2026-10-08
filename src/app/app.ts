@@ -8,7 +8,14 @@ import {
   Customer,
   OrderResult
 } from './orders-api';
-
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import {
+  MAT_DATE_LOCALE,
+  MatDateFormats,
+  provideNativeDateAdapter,
+} from '@angular/material/core';
 function currentMonth() {
   const today = new Date();
   const year = today.getFullYear();
@@ -21,11 +28,46 @@ function currentMonth() {
     end: `${prefix}-${lastDay}`
   };
 }
+const DATE_FORMATS: MatDateFormats = {
+  parse: {
+    dateInput: null,
+  },
+  display: {
+    dateInput: {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    },
+    monthYearLabel: {
+      month: 'long',
+      year: 'numeric',
+    },
+    dateA11yLabel: {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    },
+    monthYearA11yLabel: {
+      month: 'long',
+      year: 'numeric',
+    },
+  },
+};
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatDatepickerModule,
+    MatFormFieldModule,
+    MatInputModule,
+  ],
+  providers: [
+    provideNativeDateAdapter(DATE_FORMATS),
+    { provide: MAT_DATE_LOCALE, useValue: 'en-GB' },
+  ],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -37,6 +79,9 @@ export class App {
   endDate = this.initialMonth.end;
   salespersonId = '';
   customerId = '';
+
+  startDateValue: Date | null = this.toCalendarDate(this.startDate);
+  endDateValue: Date | null = this.toCalendarDate(this.endDate);
 
   readonly salespersons = signal<Salesperson[]>([]);
   readonly customers = signal<Customer[]>([]);
@@ -79,6 +124,42 @@ export class App {
     if (this.mastersReady()) {
       await this.search();
     }
+  }
+  setStartDate(value: Date | null): void {
+    this.startDateValue = value;
+
+    const nextDate = this.toApiDate(value);
+    if (nextDate === this.startDate) return;
+
+    this.startDate = nextDate;
+    this.markChanged();
+  }
+
+  setEndDate(value: Date | null): void {
+    this.endDateValue = value;
+
+    const nextDate = this.toApiDate(value);
+    if (nextDate === this.endDate) return;
+
+    this.endDate = nextDate;
+    this.markChanged();
+  }
+
+  private toCalendarDate(value: string): Date | null {
+    if (!value) return null;
+
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  private toApiDate(value: Date | null): string {
+    if (!value || Number.isNaN(value.getTime())) return '';
+
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
   }
 
   markChanged() {
@@ -185,20 +266,24 @@ export class App {
   }
 
   async reset() {
-    const month = currentMonth();
+  const month = currentMonth();
 
-    this.startDate = month.start;
-    this.endDate = month.end;
-    this.salespersonId = '';
-    this.customerId = '';
-    this.markChanged();
+  this.startDate = month.start;
+  this.endDate = month.end;
 
-    await this.changeSalesperson();
+  this.startDateValue = this.toCalendarDate(month.start);
+  this.endDateValue = this.toCalendarDate(month.end);
 
-    if (!this.error()) {
-      await this.search();
-    }
+  this.salespersonId = '';
+  this.customerId = '';
+  this.markChanged();
+
+  await this.changeSalesperson();
+
+  if (!this.error()) {
+    await this.search();
   }
+}
 
   private errorMessage(error: unknown): string {
     if (error instanceof HttpErrorResponse) {
