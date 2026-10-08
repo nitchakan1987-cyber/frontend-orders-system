@@ -106,6 +106,9 @@ export class OrdersApi {
 
     return this.get<{ data: Customer[] }>('/customers', params);
   }
+  customersAll(): Promise<{ data: Customer[] }> {
+    return this.get<{ data: Customer[] }>('/customers/all');
+  }
 
   orders(params: Record<string, string>) {
     return this.get<OrderResult>('/orders', params);

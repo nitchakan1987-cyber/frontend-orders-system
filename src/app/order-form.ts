@@ -9,7 +9,6 @@ import { MAT_DATE_LOCALE, MatDateFormats, provideNativeDateAdapter } from '@angu
 import { OrdersApi, Salesperson, Customer } from './orders-api';
 import { CreateOrderRequest, DraftItem, ProductOption } from './order-create.models';
 import { decimalMoney, displayMoney, moneyCents, MAX_MONEY_CENTS } from './order-money';
-
 const FORM_DATE_FORMATS: MatDateFormats = {
   parse: { dateInput: null },
   display: {
@@ -19,7 +18,6 @@ const FORM_DATE_FORMATS: MatDateFormats = {
     monthYearA11yLabel: { month: 'long', year: 'numeric' },
   },
 };
-
 @Component({
   selector: 'app-order-form',
   standalone: true,
@@ -43,44 +41,51 @@ export class OrderForm {
   readonly saving = signal(false);
   readonly error = signal('');
   readonly fieldErrors = signal<string[]>([]);
-
   orderDateValue: Date | null = new Date();
   salespersonId = '';
   customerId = '';
   freightCharge = '0.00';
   insuranceCharge = '0.00';
   private nextKey = 0;
-  private customerRequest = 0;
   private masterRequest = 0;
   private alive = true;
   private dirty = false;
   private completed = false;
-
   constructor() {
-    this.destroyRef.onDestroy(() => { this.alive = false; ++this.customerRequest; ++this.masterRequest; });
+    this.destroyRef.onDestroy(() => { this.alive = false; ++this.masterRequest; });
     this.addItem(false);
     void this.initialize();
   }
-
   async initialize(): Promise<void> {
     if (this.saving()) return;
     const request = ++this.masterRequest;
     this.mastersLoading.set(true);
+    this.customersLoading.set(true);
     this.mastersReady.set(false);
     this.error.set('');
     try {
-      const [sales, products] = await Promise.all([this.api.salespersons(), this.api.products()]);
+      const [sales, products, customers] = await Promise.all([
+        this.api.salespersons(),
+        this.api.products(),
+        this.api.customersAll(),
+      ]);
       if (!this.alive || request !== this.masterRequest) return;
+      if (!Array.isArray(customers.data)) {
+        throw new Error('Response /customers/all ต้องมี data เป็น array');
+      }
       this.salespersons.set(sales.data);
       this.products.set(this.productOptions(products.data));
+      this.customers.set(customers.data);
       this.mastersReady.set(true);
     } catch (error) {
       if (this.alive && request === this.masterRequest) this.error.set(this.errorMessage(error));
     } finally {
-      if (this.alive && request === this.masterRequest) this.mastersLoading.set(false);
+      if (this.alive && request === this.masterRequest) {
+        this.mastersLoading.set(false);
+        this.customersLoading.set(false);
+      }
     }
   }
-
   private productOptions(data: unknown[]): ProductOption[] {
     if (!Array.isArray(data)) throw new Error('Response /products ต้องมี data เป็น array');
     return data.map(value => {
@@ -94,28 +99,11 @@ export class OrderForm {
       };
     });
   }
-
   markDirty(): void { this.dirty = true; }
-
-  async changeSalesperson(): Promise<void> {
-    const request = ++this.customerRequest;
+  changeSalesperson(): void {
+    // Salesperson and customer are independent in Create mode.
     this.markDirty();
-    this.customerId = '';
-    this.customers.set([]);
-    this.error.set('');
-    this.customersLoading.set(false);
-    if (!this.salespersonId) return;
-    this.customersLoading.set(true);
-    try {
-      const response = await this.api.customers(this.salespersonId);
-      if (this.alive && request === this.customerRequest) this.customers.set(response.data);
-    } catch (error) {
-      if (this.alive && request === this.customerRequest) this.error.set(this.errorMessage(error));
-    } finally {
-      if (this.alive && request === this.customerRequest) this.customersLoading.set(false);
-    }
   }
-
   addItem(markDirty = true): void {
     if (this.saving()) return;
     const deliveryDate = this.orderDateValue && !Number.isNaN(this.orderDateValue.getTime())
@@ -126,18 +114,15 @@ export class OrderForm {
     }]);
     if (markDirty) this.markDirty();
   }
-
   removeItem(row: DraftItem): void {
     if (this.saving()) return;
     ++row.priceRequest;
     this.items.update(items => items.filter(item => item.key !== row.key));
     this.markDirty();
   }
-
   isUsed(productId: number, rowKey: number): boolean {
     return this.items().some(row => row.key !== rowKey && Number(row.productId) === productId);
   }
-
   async changeProduct(row: DraftItem, value: string): Promise<void> {
     row.productId = value;
     row.unitPrice = '';
@@ -168,31 +153,24 @@ export class OrderForm {
       }
     }
   }
-
   hasPendingPrices(): boolean { return this.items().some(row => row.priceLoading); }
-
   lineCents(row: DraftItem): bigint {
     const price = moneyCents(row.unitPrice);
     return price !== null && row.quantity !== null && Number.isInteger(row.quantity) && row.quantity > 0
       && row.quantity <= 2147483647 ? price * BigInt(row.quantity) : 0n;
   }
-
   subtotal(): string {
     return displayMoney(this.items().reduce((total, row) => total + this.lineCents(row), 0n));
   }
-
   lineTotal(row: DraftItem): string { return displayMoney(this.lineCents(row)); }
-
   grandTotal(): string {
     const subtotal = this.items().reduce((total, row) => total + this.lineCents(row), 0n);
     return displayMoney(subtotal + (moneyCents(this.freightCharge) ?? 0n) + (moneyCents(this.insuranceCharge) ?? 0n));
   }
-
   private dateString(value: Date | null): string {
     if (!value || Number.isNaN(value.getTime())) return '';
     return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
   }
-
   private buildRequest(): CreateOrderRequest | null {
     const errors: string[] = [];
     const orderDate = this.dateString(this.orderDateValue);
@@ -225,7 +203,6 @@ export class OrderForm {
     return { orderDate, salespersonId: Number(this.salespersonId), customerId: Number(this.customerId),
       items, freightCharge: decimalMoney(freight!), insuranceCharge: decimalMoney(insurance!) };
   }
-
   async submit(): Promise<void> {
     if (this.completed || this.saving() || this.mastersLoading() || !this.mastersReady() || this.customersLoading() || this.hasPendingPrices()) return;
     this.error.set('');
@@ -249,13 +226,11 @@ export class OrderForm {
       if (this.alive && !this.completed) this.saving.set(false);
     }
   }
-
   cancel(): void {
     if (this.saving()) return;
     if (this.dirty && !window.confirm('ยกเลิกการสร้างคำสั่งซื้อ? ข้อมูลที่กรอกยังไม่ได้บันทึก')) return;
     this.cancelled.emit();
   }
-
   private errorMessage(error: unknown): string {
     if (error instanceof HttpErrorResponse) {
       if (error.status === 0) return 'เชื่อมต่อ Backend ไม่ได้ หากเกิดตอนบันทึกให้ตรวจหน้ารายการก่อนลองบันทึกซ้ำ';

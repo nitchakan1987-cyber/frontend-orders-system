@@ -17,9 +17,9 @@
   }
   @if (detail(); as order) {
     <section class="panel">
-      <h2>{{ order.orderNo }}</h2>
+      <h2>เลขที่ใบรับคำสั่งซื้อ: {{ order.orderNo }}</h2>
       <div class="detail-grid">
-        <p><strong>วันที่รับ:</strong> {{ order.orderDate | date:'dd/MM/yyyy' }}</p>
+        <p><strong>วันที่รับคำสั่งซื้อ:</strong> {{ order.orderDate | date:'dd/MM/yyyy' }}</p>
         <p><strong>สถานะ:</strong> {{ order.deliveryStatus === 'NOT_SHIPPED' ? 'รอจัดส่ง'
           : order.deliveryStatus === 'SHIPPED' ? 'ส่งสินค้าแล้ว' : order.deliveryStatus }}</p>
         <p><strong>ลูกค้า:</strong> {{ customerName() || ('ID ' + order.customerId) }}</p>

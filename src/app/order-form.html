@@ -2,7 +2,7 @@
   <header class="header"><h1>สร้างคำสั่งซื้อ</h1></header>
   <section class="panel">
     <p>เลขที่เอกสารจะสร้างอัตโนมัติเมื่อบันทึกสำเร็จ</p>
-    @if (mastersLoading()) { <p role="status">กำลังโหลดเจ้าหน้าที่ขายและสินค้า...</p> }
+    @if (mastersLoading()) { <p role="status">กำลังโหลดเจ้าหน้าที่ขาย ลูกค้า และสินค้า...</p> }
     @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
     @if (!mastersReady() && !mastersLoading()) {
       <button type="button" (click)="initialize()">โหลดข้อมูลใหม่</button>
@@ -30,14 +30,14 @@
       </label>
       <label>ลูกค้า
         <select [(ngModel)]="customerId" (ngModelChange)="markDirty()"
-          [disabled]="saving() || customersLoading() || !salespersonId || !mastersReady()">
+          [disabled]="saving() || mastersLoading() || customersLoading() || !mastersReady()">
           <option value="">{{ customersLoading() ? 'กำลังโหลดลูกค้า...' : 'เลือกลูกค้า' }}</option>
           @for (customer of customers(); track customer.id) { <option [value]="customer.id">{{ customer.name }}</option> }
         </select>
       </label>
     </div>
-    @if (salespersonId && !customersLoading() && !customers().length) {
-      <p>ยังไม่มีลูกค้าสำหรับเจ้าหน้าที่ขายนี้ กรุณาตรวจข้อมูลที่ Backend</p>
+    @if (mastersReady() && !customersLoading() && !customers().length) {
+      <p>ไม่พบข้อมูลลูกค้า กรุณาตรวจข้อมูลที่ Backend</p>
     }
   </section>
 
