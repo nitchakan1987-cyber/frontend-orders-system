@@ -62,6 +62,9 @@ export class OrdersList {
   private loadRequest = 0;
   private customerRequest = 0;
 
+  readonly deletingId = signal<number | null>(null);
+  readonly successMessage = signal('');
+
   constructor() {
     this.destroyRef.onDestroy(() => {
       ++this.loadRequest;
@@ -210,6 +213,82 @@ export class OrdersList {
       state: { fromOrdersList: true },
     });
   }
+  
+  async deleteOrder(order: Order): Promise<void> {
+    if (
+      this.loading() ||
+      this.customersLoading() ||
+      this.deletingId() !== null ||
+      !order.actions?.canDelete ||
+      order.deliveryStatus !== 'NOT_SHIPPED'
+    ) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `ต้องการลบคำสั่งซื้อ ${order.orderNo} ใช่หรือไม่?`
+    );
+
+    if (!confirmed) return;
+
+    const current = this.result();
+    const filters = { ...this.appliedFilters };
+    let page = current?.meta.page ?? 1;
+
+    if (current && current.data.items.length === 1 && page > 1) {
+      page -= 1;
+    }
+
+    this.deletingId.set(order.id);
+    this.loading.set(true);
+    this.error.set('');
+    this.successMessage.set('');
+
+    let deleted = false;
+
+    try {
+      await this.api.deleteOrder(order.id);
+      deleted = true;
+
+      this.successMessage.set(`ลบคำสั่งซื้อ ${order.orderNo} สำเร็จ`);
+
+      this.result.set(null);
+
+      // โหลดรายการและ Summary ใหม่ด้วยเงื่อนไขที่ค้นหาล่าสุด
+      await this.navigateSearch(filters, page);
+    } catch (error) {
+      if (deleted) {
+        this.error.set(
+          'ลบสำเร็จแล้ว แต่โหลดรายการใหม่ไม่สำเร็จ กรุณากดโหลดข้อมูลใหม่'
+        );
+      } else if (error instanceof HttpErrorResponse) {
+        if (error.status === 409) {
+          this.error.set(
+            'ลบไม่ได้ เอกสารอาจมีการส่งสินค้าแล้ว กรุณาโหลดข้อมูลใหม่'
+          );
+        } else if (error.status === 404) {
+          this.error.set(
+            'ไม่พบคำสั่งซื้อ เอกสารอาจถูกลบแล้ว กรุณาโหลดข้อมูลใหม่'
+          );
+        } else if (error.status === 403) {
+          this.error.set('ไม่มีสิทธิ์ลบคำสั่งซื้อนี้');
+        } else {
+          this.error.set(this.errorMessage(error));
+        }
+      } else {
+        this.error.set('ดำเนินการไม่สำเร็จ กรุณาลองใหม่');
+      }
+
+      this.loading.set(false);
+    } finally {
+      this.deletingId.set(null);
+
+      if (!deleted) {
+        this.loading.set(false);
+      }
+    }
+  }
+
 
   viewOrder(order: Order): void {
     if (!order.actions?.canView || this.loading()) return;

@@ -79,6 +79,7 @@
 
   <section class="panel">
     <h2>รายการคำสั่งซื้อ</h2>
+    @if (successMessage()) {<p role="status">{{ successMessage() }}</p>}
     @if (loading()) { <p role="status">กำลังโหลดข้อมูล ผลเดิมยังไม่อัปเดต</p> }
     @if (error() && result()) { <p class="error">ข้อมูลด้านล่างเป็นผลที่โหลดสำเร็จครั้งก่อน</p> }
     <div class="table-wrapper">
@@ -107,8 +108,19 @@
                 @if (order.actions?.canEdit && order.deliveryStatus === 'NOT_SHIPPED') {
                   <button type="button" (click)="editOrder(order)" [disabled]="loading()">แก้ไข</button>
                 }
-                @if (order.actions?.canDelete) { <button type="button" disabled>ลบ</button> }
-              </td>
+                @if (
+                  order.actions?.canDelete &&
+                  order.deliveryStatus === 'NOT_SHIPPED'
+                ) {
+                  <button
+                    type="button"
+                    (click)="deleteOrder(order)"
+                    [disabled]="loading() || customersLoading() || deletingId() !== null"
+                  >
+                    {{ deletingId() === order.id ? 'กำลังลบ...' : 'ลบ' }}
+                  </button>
+                }
+                 </td>
             </tr>
           } @empty {
             <tr><td colspan="7" class="empty">{{ loading() ? 'กำลังโหลดข้อมูล'

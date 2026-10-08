@@ -141,4 +141,13 @@ export class OrdersApi {
       })
     );
   }
+  async deleteOrder(orderId: number): Promise<void> {
+    await firstValueFrom(
+      this.http.delete<unknown>(`/api/v1/orders/${orderId}`, {
+        headers: new HttpHeaders({
+          Authorization: `Bearer ${this.token}`,
+        }),
+      })
+    );
+  }
 }
